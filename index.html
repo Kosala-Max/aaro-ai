@@ -202,8 +202,8 @@ footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
   </section>
 
   <section class="mode-row" aria-label="AARO AI mode">
-    <button id="chatModeBtn" type="button" class="mode-btn active">💬 Chat Mode</button>
-    <button id="voiceModeBtn" type="button" class="mode-btn">🎙️ Voice Mode</button>
+    <button id="chatModeBtn" type="button" class="mode-btn active" onclick="setMode('chat')">💬 Chat Mode</button>
+    <button id="voiceModeBtn" type="button" class="mode-btn" onclick="setMode('voice')">🎙️ Voice Mode</button>
   </section>
 
   <section class="settings">
@@ -292,8 +292,8 @@ function setMode(mode) {
     info.textContent = "Voice Mode සක්‍රීයයි. Mic බොත්තම ඔබලා කතා කරන්න.";
   }
 }
-chatModeBtn.addEventListener("click", () => setMode("chat"));
-voiceModeBtn.addEventListener("click", () => setMode("voice"));
+// Expose mode switching for the buttons as an additional reliable click path.
+window.setMode = setMode;
 
 let recognition = null;
 let listening = false;
