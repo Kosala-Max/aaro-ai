@@ -399,97 +399,70 @@ voiceSelect.addEventListener("change", () => {
 let currentAudio = null;
 let speechRequestId = 0;
 
-async function speak(text) {
+function speak(text) {
   const requestId = ++speechRequestId;
 
   if (currentAudio) {
     currentAudio.pause();
     currentAudio = null;
   }
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-  }
 
-  const selectedLanguage = language.value || "si-LK";
-
-  // Sinhala speech uses Gemini TTS instead of the browser's often-inaccurate voice.
-  if (selectedLanguage.toLowerCase().startsWith("si")) {
-    info.textContent = "AARO සිංහල හඬ සකස් කරමින්...";
-    try {
-      const response = await fetch(AARO_WORKER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "tts", text: text })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.audioBase64) {
-        throw new Error(data.error || "සිංහල හඬ ලබාගන්න බැරි වුණා.");
-      }
-      if (requestId !== speechRequestId) return;
-
-      const audio = new Audio(
-        "data:" + (data.mimeType || "audio/wav") + ";base64," + data.audioBase64
-      );
-      audio.playbackRate = Number(speed.value) || 1;
-      currentAudio = audio;
-
-      audio.onended = () => {
-        if (currentAudio === audio) currentAudio = null;
-        if (requestId === speechRequestId) {
-          info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
-        }
-      };
-      audio.onerror = () => {
-        if (currentAudio === audio) currentAudio = null;
-        if (requestId === speechRequestId) {
-          info.textContent = "සිංහල audio එක play කරන්න බැරි වුණා.";
-        }
-      };
-
-      await audio.play();
-      info.textContent = "AARO AI සිංහලෙන් කතා කරනවා...";
-    } catch (error) {
-      if (requestId !== speechRequestId) return;
-      console.error("AARO Sinhala TTS failed:", error);
-      info.textContent =
-        "සිංහල හඬ දෝෂය: " + (error && error.message ? error.message : "නොදන්නා දෝෂයක්") +
-        ". Browser Console සහ Worker logs පරීක්ෂා කරන්න.";
-    }
-    return;
-  }
-
-  // English can continue using the browser voice.
   if (!("speechSynthesis" in window)) {
-    info.textContent = "මෙම browser එකේ voice output සහාය නැහැ.";
+    info.textContent = "මෙම browser එකේ හඬින් පිළිතුරු දීම සඳහා සහාය නැහැ.";
     return;
   }
 
   const synth = window.speechSynthesis;
-  const spokenText = text.replace(/\\bAARO\\b/gi, "ආරෝ");
-  const utterance = new SpeechSynthesisUtterance(spokenText);
+  synth.cancel();
+
+  const selectedLanguage = language.value || "si-LK";
+  const isSinhala = selectedLanguage.toLowerCase().startsWith("si");
   const languageCode = selectedLanguage.toLowerCase().split("-")[0];
   const voices = synth.getVoices();
 
-  const femaleVoice = voices.find(voice => {
-    const name = voice.name.toLowerCase();
-    const soundsFemale = /female|woman|zira|samantha|susan|karen|aria|jenny|sonia|helen|eva|sara|natasha|hazel|google uk english female/.test(name);
-    return soundsFemale && voice.lang.toLowerCase().startsWith(languageCode);
-  });
+  // Prefer a Sinhala voice for Sinhala replies. This uses browser speech
+  // synthesis locally and does not consume Gemini TTS API quota.
+  const matchingVoice = selectedVoice &&
+    (!isSinhala || selectedVoice.lang.toLowerCase().startsWith("si"))
+      ? selectedVoice
+      : voices.find(voice =>
+          voice.lang.toLowerCase().startsWith(languageCode)
+        ) || null;
 
-  const anyLanguageVoice = voices.find(voice =>
-    voice.lang.toLowerCase().startsWith(languageCode)
-  );
-
+  const spokenText = text.replace(/\bAARO\b/gi, "ආරෝ");
+  const utterance = new SpeechSynthesisUtterance(spokenText);
   utterance.lang = selectedLanguage;
-  utterance.voice = selectedVoice || femaleVoice || anyLanguageVoice || null;
+  utterance.voice = matchingVoice;
   utterance.rate = Number(speed.value) || 1;
   utterance.pitch = 1.05;
 
-  utterance.onerror = () => {
-    info.textContent = "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
+  utterance.onstart = () => {
+    if (requestId === speechRequestId) {
+      info.textContent = isSinhala
+        ? "AARO AI browser එකෙන් සිංහල හඬ ලබාදීමට උත්සාහ කරනවා..."
+        : "AARO AI හඬින් පිළිතුරු දෙනවා...";
+    }
   };
+
+  utterance.onend = () => {
+    if (requestId === speechRequestId) {
+      info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
+    }
+  };
+
+  utterance.onerror = (event) => {
+    if (requestId !== speechRequestId || event.error === "canceled") return;
+    console.error("AARO browser speech failed:", event.error);
+    info.textContent = isSinhala
+      ? "Browser එකෙන් සිංහල හඬ ලබාගන්න බැරි වුණා. Chrome හි සිංහල voice එකක් තිබේදැයි පරීක්ෂා කරන්න."
+      : "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
+  };
+
+  if (isSinhala && !matchingVoice) {
+    info.textContent = "සිංහල voice එකක් සොයමින්. Browser එකේ default voice එකෙන් උත්සාහ කරනවා...";
+  } else {
+    info.textContent = "AARO AI හඬ සකස් කරමින්...";
+  }
 
   synth.speak(utterance);
 }
