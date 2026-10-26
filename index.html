@@ -454,7 +454,8 @@ async function speak(text) {
       if (requestId !== speechRequestId) return;
       console.error("AARO Sinhala TTS failed:", error);
       info.textContent =
-        "සිංහල හඬ ලබාගන්න බැරි වුණා. Worker TTS settings සහ Gemini API error පරීක්ෂා කරන්න.";
+        "සිංහල හඬ දෝෂය: " + (error && error.message ? error.message : "නොදන්නා දෝෂයක්") +
+        ". Browser Console සහ Worker logs පරීක්ෂා කරන්න.";
     }
     return;
   }
