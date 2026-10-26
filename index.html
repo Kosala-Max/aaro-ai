@@ -346,24 +346,81 @@ voiceSelect.addEventListener("change", () => {
     : voices[Number(voiceSelect.value)] || null;
 });
 
-function speak(text) {
+let currentAudio = null;
+let speechRequestId = 0;
+
+async function speak(text) {
+  const requestId = ++speechRequestId;
+
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  const selectedLanguage = language.value || "si-LK";
+
+  // Sinhala speech uses Gemini TTS instead of the browser's often-inaccurate voice.
+  if (selectedLanguage.toLowerCase().startsWith("si")) {
+    info.textContent = "AARO සිංහල හඬ සකස් කරමින්...";
+    try {
+      const response = await fetch(AARO_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "tts", text: text })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.audioBase64) {
+        throw new Error(data.error || "සිංහල හඬ ලබාගන්න බැරි වුණා.");
+      }
+      if (requestId !== speechRequestId) return;
+
+      const audio = new Audio(
+        "data:" + (data.mimeType || "audio/wav") + ";base64," + data.audioBase64
+      );
+      audio.playbackRate = Number(speed.value) || 1;
+      currentAudio = audio;
+
+      audio.onended = () => {
+        if (currentAudio === audio) currentAudio = null;
+        if (requestId === speechRequestId) {
+          info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
+        }
+      };
+      audio.onerror = () => {
+        if (currentAudio === audio) currentAudio = null;
+        if (requestId === speechRequestId) {
+          info.textContent = "සිංහල audio එක play කරන්න බැරි වුණා.";
+        }
+      };
+
+      await audio.play();
+      info.textContent = "AARO AI සිංහලෙන් කතා කරනවා...";
+    } catch (error) {
+      if (requestId !== speechRequestId) return;
+      console.error("AARO Sinhala TTS failed:", error);
+      info.textContent =
+        "සිංහල හඬ ලබාගන්න බැරි වුණා. Worker TTS settings සහ Gemini API error පරීක්ෂා කරන්න.";
+    }
+    return;
+  }
+
+  // English can continue using the browser voice.
   if (!("speechSynthesis" in window)) {
     info.textContent = "මෙම browser එකේ voice output සහාය නැහැ.";
     return;
   }
 
   const synth = window.speechSynthesis;
-  synth.cancel();
-
-  // AARO නම සිංහලෙන් උච්චාරණය කිරීමට උපකාරී වේ.
-  const spokenText = text.replace(/\bAARO\b/gi, "ආරෝ");
+  const spokenText = text.replace(/\\bAARO\\b/gi, "ආරෝ");
   const utterance = new SpeechSynthesisUtterance(spokenText);
-  const selectedLanguage = language.value || "si-LK";
   const languageCode = selectedLanguage.toLowerCase().split("-")[0];
   const voices = synth.getVoices();
 
-  // User manually selected a voice? Keep respecting that choice.
-  // Otherwise, prefer a female-sounding voice for the chosen language.
   const femaleVoice = voices.find(voice => {
     const name = voice.name.toLowerCase();
     const soundsFemale = /female|woman|zira|samantha|susan|karen|aria|jenny|sonia|helen|eva|sara|natasha|hazel|google uk english female/.test(name);
@@ -376,12 +433,11 @@ function speak(text) {
 
   utterance.lang = selectedLanguage;
   utterance.voice = selectedVoice || femaleVoice || anyLanguageVoice || null;
-  utterance.rate = Number(speed.value) || 0.92;
-  utterance.pitch = 1.15;
+  utterance.rate = Number(speed.value) || 1;
+  utterance.pitch = 1.05;
 
   utterance.onerror = () => {
-    info.textContent =
-      "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
+    info.textContent = "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
   };
 
   synth.speak(utterance);
@@ -608,6 +664,12 @@ clearMemoryBtn.addEventListener("click", () => {
 });
 
 stopBtn.addEventListener("click", () => {
+  speechRequestId++;
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
   if (recognition && listening) {
