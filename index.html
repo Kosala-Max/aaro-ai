@@ -221,6 +221,7 @@ footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
     <div class="voice-row">
       <button id="micBtn" type="button">🎙️ කතා කරන්න</button>
       <button id="stopBtn" type="button">🔇 හඬ නවත්වන්න</button>
+      <button id="clearMemoryBtn" type="button">🗑️ Chat memory මකන්න</button>
     </div>
   </section>
 
@@ -242,13 +243,60 @@ const language = document.getElementById("language");
 const voiceSelect = document.getElementById("voiceSelect");
 const speed = document.getElementById("speed");
 const info = document.getElementById("info");
+const clearMemoryBtn = document.getElementById("clearMemoryBtn");
 
 let recognition = null;
 let listening = false;
 let selectedVoice = null;
 const AARO_WORKER_URL = "https://aaro-ai-brain.nproshan1978.workers.dev";
-let conversationHistory = [];
+
+// Privacy-friendly memory: saved only in this browser on this device.
+// It is not uploaded as a separate memory database. The last 10 exchanges are kept.
+const MEMORY_KEY = "aaro_ai_conversation_memory_v1";
+const MAX_SAVED_MESSAGES = 20;
+let conversationHistory = loadConversationMemory();
 let isReplying = false;
+
+function loadConversationMemory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MEMORY_KEY) || "[]");
+    if (!Array.isArray(saved)) return [];
+    return saved
+      .filter(item =>
+        item &&
+        (item.role === "user" || item.role === "model") &&
+        typeof item.text === "string"
+      )
+      .slice(-MAX_SAVED_MESSAGES);
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveConversationMemory() {
+  try {
+    localStorage.setItem(
+      MEMORY_KEY,
+      JSON.stringify(conversationHistory.slice(-MAX_SAVED_MESSAGES))
+    );
+    return true;
+  } catch (error) {
+    info.textContent = "මේ browser එකේ memory save කරන්න බැහැ. Browser storage settings පරීක්ෂා කරන්න.";
+    return false;
+  }
+}
+
+function showWelcomeMessage() {
+  messages.replaceChildren();
+  if (conversationHistory.length) {
+    conversationHistory.forEach(item => {
+      addMessage(item.text, item.role === "user" ? "user" : "bot");
+    });
+    info.textContent = "පෙර chat එක මේ device එකෙන් නැවත ලබාගත්තා. Memory මකන්න button එකෙන් මකන්න පුළුවන්.";
+  } else {
+    addMessage("හෙලෝ! 👋 මම AARO. ඔයාට මගෙන් මොනවද දැනගන්න ඕනේ?", "bot");
+  }
+}
 
 function addMessage(text, who) {
   const bubble = document.createElement("div");
@@ -368,7 +416,8 @@ async function reply(text) {
     const answer = String(data.reply).trim();
     conversationHistory.push({ role: "user", text: text });
     conversationHistory.push({ role: "model", text: answer });
-    conversationHistory = conversationHistory.slice(-10);
+    conversationHistory = conversationHistory.slice(-MAX_SAVED_MESSAGES);
+    saveConversationMemory();
 
     addMessage(answer, "bot");
     info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
@@ -542,6 +591,22 @@ function finishVoiceSession() {
 }
 micBtn.addEventListener("click", startListening);
 
+clearMemoryBtn.addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "මේ device එකේ save කරපු AARO AI chat memory එක මකන්නද? මේ ක්‍රියාව ආපසු හැරවිය නොහැක."
+  );
+  if (!confirmed) return;
+
+  conversationHistory = [];
+  try {
+    localStorage.removeItem(MEMORY_KEY);
+  } catch (error) {
+    // Clear the visible chat even if browser storage is unavailable.
+  }
+  showWelcomeMessage();
+  info.textContent = "Chat memory මේ device එකෙන් මකා දැම්මා.";
+});
+
 stopBtn.addEventListener("click", () => {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
@@ -563,6 +628,9 @@ language.addEventListener("change", () => {
     language.selectedIndex
   ].textContent;
 });
+
+// Restore the saved conversation when this page opens.
+showWelcomeMessage();
 
 </script>
 </body>
