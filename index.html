@@ -226,7 +226,7 @@ footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
 
   <p class="note" id="info">
     Voice භාවිතයට microphone අවසරය දෙන්න.
-    මෙය මූලික demo එකකි; තවම සැබෑ AI සේවාවක් සම්බන්ධ කර නැත.
+    සැබෑ AI සේවාවට සම්බන්ධ වීමට සූදානම්. පණිවිඩයක් යවා පරීක්ෂා කරන්න.
   </p>
 </main>
 
@@ -246,6 +246,9 @@ const info = document.getElementById("info");
 let recognition = null;
 let listening = false;
 let selectedVoice = null;
+const AARO_WORKER_URL = "https://aaro-ai.nproshan1978.workers.dev";
+let conversationHistory = [];
+let isReplying = false;
 
 function addMessage(text, who) {
   const bubble = document.createElement("div");
@@ -336,39 +339,50 @@ function speak(text) {
   synth.speak(utterance);
 }
 
-// This is a temporary demo brain, not a real AI model.
-function getDemoReply(text) {
-  const t = text.toLowerCase().trim();
-
-  if (/^(hi|hello|hey|හෙලෝ|හලෝ|ආයුබෝවන්)/.test(t)) {
-    return "හෙලෝ! 😊 මගේ නම ආරෝ. අද ඔයාට කොහොමද?";
+async function reply(text) {
+  if (isReplying) {
+    addMessage("පෙර පණිවිඩයට පිළිතුරු සකස් කරමින් ඉන්නවා. මොහොතක් ඉන්න.", "bot");
+    return;
   }
 
-  if (t.includes("ඔයාගේ නම") || t.includes("ඔයා කවුද")) {
-    return "මගේ නම AARO. මම ඔයාගේ පුද්ගලික AI Assistant වෙන්න හදනවා!";
+  isReplying = true;
+  info.textContent = "AARO AI පිළිතුර සකස් කරමින්...";
+  try {
+    const response = await fetch(AARO_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history: conversationHistory.slice(-10) })
+    });
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (_) {
+      throw new Error("Server එකෙන් කියවිය හැකි පිළිතුරක් ලැබුණේ නැහැ.");
+    }
+
+    if (!response.ok || !data.reply) {
+      throw new Error(data.details || data.error || "AI සේවාවෙන් පිළිතුරක් ලැබුණේ නැහැ.");
+    }
+
+    const answer = String(data.reply).trim();
+    conversationHistory.push({ role: "user", text: text });
+    conversationHistory.push({ role: "model", text: answer });
+    conversationHistory = conversationHistory.slice(-10);
+
+    addMessage(answer, "bot");
+    info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
+    speak(answer);
+  } catch (error) {
+    console.error("AARO AI request failed:", error);
+    addMessage(
+      "AARO AI වෙත සම්බන්ධ වෙන්න බැරි වුණා. Internet connection එක සහ Cloudflare Worker settings පරීක්ෂා කර නැවත උත්සාහ කරන්න. (" + (error.message || "Network error") + ")",
+      "bot"
+    );
+    info.textContent = "AI සම්බන්ධතාවයේ දෝෂයක්. නැවත උත්සාහ කරන්න.";
+  } finally {
+    isReplying = false;
   }
-
-  if (t.includes("කොහොමද") || t.includes("how are you")) {
-    return "මම හොඳින්! 😊 ඔයාට අද මොනවද කරන්න ඕනේ?";
-  }
-
-  if (t.includes("ස්තුති") || t.includes("thank")) {
-    return "ඔයාට සාදරයෙන් පිළිගන්නවා! 💜";
-  }
-
-  if (t.includes("සමුගන්න") || t.includes("bye")) {
-    return "හරි! පරිස්සමින් ඉන්න. ආයෙත් කතා කරමු!";
-  }
-
-  return "ඔයා කිව්වේ: " + text +
-    "\n\nමේක AARO එකේ පළමු demo version එකයි. " +
-    "සැබෑ AI පිළිතුරු ලබාදීමට ඊළඟට AI සේවාවක් සම්බන්ධ කරමු.";
-}
-
-function reply(text) {
-  const answer = getDemoReply(text);
-  addMessage(answer, "bot");
-  speak(answer);
 }
 
 form.addEventListener("submit", (event) => {
