@@ -137,6 +137,22 @@ button {
 }
 button:active { transform: scale(.97); }
 .primary { background: var(--purple); color: #160925; font-weight: bold; }
+.mode-row {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.mode-btn {
+  flex: 1;
+  background: #171126;
+  border: 1px solid #44315e;
+}
+.mode-btn.active {
+  background: var(--purple);
+  color: #160925;
+  font-weight: bold;
+  border-color: var(--purple);
+}
 .voice-row {
   display: flex;
   gap: 9px;
@@ -183,6 +199,11 @@ footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
     <h1>Hi, මම AARO!</h1>
     <p>ඔයාගේම AI Assistant 🤖<br>
     අපි සිංහලෙන් කතා කරමු.</p>
+  </section>
+
+  <section class="mode-row" aria-label="AARO AI mode">
+    <button id="chatModeBtn" type="button" class="mode-btn active">💬 Chat Mode</button>
+    <button id="voiceModeBtn" type="button" class="mode-btn">🎙️ Voice Mode</button>
   </section>
 
   <section class="settings">
@@ -244,6 +265,32 @@ const voiceSelect = document.getElementById("voiceSelect");
 const speed = document.getElementById("speed");
 const info = document.getElementById("info");
 const clearMemoryBtn = document.getElementById("clearMemoryBtn");
+const chatModeBtn = document.getElementById("chatModeBtn");
+const voiceModeBtn = document.getElementById("voiceModeBtn");
+let currentMode = "chat";
+
+function setMode(mode) {
+  currentMode = mode;
+  chatModeBtn.classList.toggle("active", mode === "chat");
+  voiceModeBtn.classList.toggle("active", mode === "voice");
+  micBtn.disabled = mode !== "voice";
+  micBtn.style.opacity = mode === "voice" ? "1" : "0.55";
+  voiceSelect.disabled = mode !== "voice";
+  speed.disabled = mode !== "voice";
+  if (mode === "chat") {
+    if (recognition && listening) {
+      keepListening = false;
+      try { recognition.stop(); } catch (_) {}
+    }
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    info.textContent = "Chat Mode සක්‍රීයයි. Text වලින් පමණක් කතා කරන්න.";
+  } else {
+    info.textContent = "Voice Mode සක්‍රීයයි. Mic බොත්තම ඔබලා කතා කරන්න.";
+  }
+}
+chatModeBtn.addEventListener("click", () => setMode("chat"));
+voiceModeBtn.addEventListener("click", () => setMode("voice"));
 
 let recognition = null;
 let listening = false;
@@ -477,7 +524,7 @@ async function reply(text) {
 
     addMessage(answer, "bot");
     info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
-    speak(answer);
+    if (currentMode === "voice") speak(answer);
   } catch (error) {
     console.error("AARO AI request failed:", error);
     addMessage(
