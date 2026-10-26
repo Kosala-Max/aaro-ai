@@ -246,7 +246,7 @@ const info = document.getElementById("info");
 let recognition = null;
 let listening = false;
 let selectedVoice = null;
-const AARO_WORKER_URL = "https://aaro-ai.nproshan1978.workers.dev";
+const AARO_WORKER_URL = "https://aaro-ai-brain.nproshan1978.workers.dev";
 let conversationHistory = [];
 let isReplying = false;
 
@@ -362,7 +362,7 @@ async function reply(text) {
     }
 
     if (!response.ok || !data.reply) {
-      throw new Error(data.details || data.error || "AI සේවාවෙන් පිළිතුරක් ලැබුණේ නැහැ.");
+      throw new Error((data.error || "AI සේවාවෙන් පිළිතුරක් ලැබුණේ නැහැ.") + (data.status ? " (HTTP " + data.status + ")" : ""));
     }
 
     const answer = String(data.reply).trim();
