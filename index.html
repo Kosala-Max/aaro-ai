@@ -810,11 +810,21 @@ function finishVoiceSession() {
 }
 micBtn.addEventListener("click", startListening);
 
-testVoiceBtn.addEventListener("click", () => {
-  // Direct click helps browsers that require a user gesture before speech.
-  speak(language.value.toLowerCase().startsWith("si")
+testVoiceBtn.addEventListener("click", async () => {
+  // Test the same generated-audio path used for Voice Mode first.
+  // If the Worker TTS service is unavailable, speakAnswer falls back to browser speech.
+  const testText = language.value.toLowerCase().startsWith("si")
     ? "ආයුබෝවන්. මම ආරෝ කෘත්‍රිම බුද්ධි සහායකයා. හඬ පරීක්ෂාව සාර්ථකයි."
-    : "Hello. I am AARO AI. This is a voice test.");
+    : "Hello. I am AARO AI. This is a voice test.";
+
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+  info.textContent = "හඬ පරීක්ෂා කරමින්... මුලින් AI හඬ සේවාව උත්සාහ කරනවා.";
+  await speakAnswer(testText);
 });
 
 clearMemoryBtn.addEventListener("click", () => {
