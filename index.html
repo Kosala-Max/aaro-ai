@@ -241,6 +241,7 @@ footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
 
     <div class="voice-row">
       <button id="micBtn" type="button">🎙️ කතා කරන්න</button>
+      <button id="testVoiceBtn" type="button">🔊 හඬ පරීක්ෂා කරන්න</button>
       <button id="stopBtn" type="button">🔇 හඬ නවත්වන්න</button>
       <button id="clearMemoryBtn" type="button">🗑️ Chat memory මකන්න</button>
     </div>
@@ -259,6 +260,7 @@ const messages = document.getElementById("messages");
 const input = document.getElementById("userInput");
 const form = document.getElementById("chatForm");
 const micBtn = document.getElementById("micBtn");
+const testVoiceBtn = document.getElementById("testVoiceBtn");
 const stopBtn = document.getElementById("stopBtn");
 const language = document.getElementById("language");
 const voiceSelect = document.getElementById("voiceSelect");
@@ -407,8 +409,8 @@ function speak(text) {
     currentAudio = null;
   }
 
-  if (!("speechSynthesis" in window)) {
-    info.textContent = "මෙම browser එකේ හඬින් පිළිතුරු දීම සඳහා සහාය නැහැ.";
+  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+    info.textContent = "මෙම browser එකේ හඬින් පිළිතුරු දීම සඳහා සහාය නැහැ. අලුත් Chrome හෝ Edge භාවිතා කරන්න.";
     return;
   }
 
@@ -420,8 +422,8 @@ function speak(text) {
   const languageCode = selectedLanguage.toLowerCase().split("-")[0];
   const voices = synth.getVoices();
 
-  // Prefer a Sinhala voice for Sinhala replies. This uses browser speech
-  // synthesis locally and does not consume Gemini TTS API quota.
+  // Use a matching language voice when available. Otherwise let the browser
+  // choose its default voice rather than assigning a missing/invalid voice.
   const matchingVoice = selectedVoice &&
     (!isSinhala || selectedVoice.lang.toLowerCase().startsWith("si"))
       ? selectedVoice
@@ -429,17 +431,26 @@ function speak(text) {
           voice.lang.toLowerCase().startsWith(languageCode)
         ) || null;
 
-  const spokenText = text.replace(/\bAARO\b/gi, "ආරෝ");
+  const spokenText = String(text || "").replace(/\\bAARO\\b/gi, "ආරෝ").trim();
+  if (!spokenText) {
+    info.textContent = "AI වෙතින් හිස් පිළිතුරක් ලැබුණා. නැවත උත්සාහ කරන්න.";
+    return;
+  }
+
   const utterance = new SpeechSynthesisUtterance(spokenText);
   utterance.lang = selectedLanguage;
-  utterance.voice = matchingVoice;
+  if (matchingVoice) utterance.voice = matchingVoice;
   utterance.rate = Number(speed.value) || 1;
-  utterance.pitch = 1.05;
+  utterance.pitch = 1;
 
+  let started = false;
   utterance.onstart = () => {
+    started = true;
     if (requestId === speechRequestId) {
       info.textContent = isSinhala
-        ? "AARO AI browser එකෙන් සිංහල හඬ ලබාදීමට උත්සාහ කරනවා..."
+        ? (matchingVoice
+            ? "AARO AI සිංහල හඬින් පිළිතුරු දෙනවා..."
+            : "සිංහල voice එකක් browser එකේ හමු වුණේ නැහැ. Default voice එකෙන් උත්සාහ කරනවා...")
         : "AARO AI හඬින් පිළිතුරු දෙනවා...";
     }
   };
@@ -451,20 +462,24 @@ function speak(text) {
   };
 
   utterance.onerror = (event) => {
-    if (requestId !== speechRequestId || event.error === "canceled") return;
+    if (requestId !== speechRequestId || event.error === "canceled" || event.error === "interrupted") return;
     console.error("AARO browser speech failed:", event.error);
-    info.textContent = isSinhala
-      ? "Browser එකෙන් සිංහල හඬ ලබාගන්න බැරි වුණා. Chrome හි සිංහල voice එකක් තිබේදැයි පරීක්ෂා කරන්න."
-      : "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
+    info.textContent = "Browser හඬ දෝෂය: " + event.error +
+      (isSinhala ? ". Chrome/Windows තුළ Sinhala voice එකක් තිබේදැයි පරීක්ෂා කරන්න." : ". වෙනත් voice එකක් තෝරා බලන්න.");
   };
 
-  if (isSinhala && !matchingVoice) {
-    info.textContent = "සිංහල voice එකක් සොයමින්. Browser එකේ default voice එකෙන් උත්සාහ කරනවා...";
-  } else {
-    info.textContent = "AARO AI හඬ සකස් කරමින්...";
-  }
-
+  info.textContent = "හඬ සකස් කරමින්...";
+  synth.resume();
   synth.speak(utterance);
+
+  // If speech never starts, show a useful diagnostic instead of silently waiting.
+  window.setTimeout(() => {
+    if (requestId === speechRequestId && !started && synth.speaking === false) {
+      info.textContent = isSinhala
+        ? "හඬ ආරම්භ වුණේ නැහැ. 'හඬ පරීක්ෂා කරන්න' ඔබා බලන්න; Windows/Chrome voice settings පරීක්ෂා කරන්න."
+        : "හඬ ආරම්භ වුණේ නැහැ. 'හඬ පරීක්ෂා කරන්න' ඔබා වෙනත් voice එකක් පරීක්ෂා කරන්න.";
+    }
+  }, 2500);
 }
 
 async function reply(text, responseMode = "text") {
@@ -689,6 +704,13 @@ function finishVoiceSession() {
   }
 }
 micBtn.addEventListener("click", startListening);
+
+testVoiceBtn.addEventListener("click", () => {
+  // Direct click helps browsers that require a user gesture before speech.
+  speak(language.value.toLowerCase().startsWith("si")
+    ? "ආයුබෝවන්. මම ආරෝ කෘත්‍රිම බුද්ධි සහායකයා. හඬ පරීක්ෂාව සාර්ථකයි."
+    : "Hello. I am AARO AI. This is a voice test.");
+});
 
 clearMemoryBtn.addEventListener("click", () => {
   const confirmed = window.confirm(
