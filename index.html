@@ -306,7 +306,8 @@ const AARO_WORKER_URL = "https://aaro-ai-brain.nproshan1978.workers.dev";
 // It is not uploaded as a separate memory database. The last 10 exchanges are kept.
 const MEMORY_KEY = "aaro_ai_conversation_memory_v1";
 const MAX_SAVED_MESSAGES = 20;
-let conversationHistory = loadConversationMemory();
+let conversationHistory = loadConversationMemory(); // Chat Mode history only
+let voiceConversationHistory = [];
 let isReplying = false;
 
 function loadConversationMemory() {
@@ -482,6 +483,69 @@ function speak(text) {
   }, 2500);
 }
 
+async function speakAnswer(text) {
+  const spokenText = String(text || "").trim();
+  if (!spokenText) {
+    info.textContent = "AI වෙතින් හිස් පිළිතුරක් ලැබුණා.";
+    return;
+  }
+
+  // Try generated audio first; if the TTS quota/service is unavailable, use browser speech.
+  try {
+    info.textContent = "AI පිළිතුර හඬට පරිවර්තනය කරමින්...";
+    const response = await fetch(AARO_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "tts",
+        text: spokenText,
+        language: language.value || "si-LK"
+      })
+    });
+    const data = await response.json();
+
+    if (response.ok && data.audioBase64) {
+      const binary = atob(data.audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const audioUrl = URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" }));
+      const audio = new Audio(audioUrl);
+      currentAudio = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        if (currentAudio === audio) currentAudio = null;
+        info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        if (currentAudio === audio) currentAudio = null;
+        info.textContent = "හඬ ගොනුව play කරන්න බැරි වුණා. Browser හඬෙන් උත්සාහ කරනවා...";
+        speak(spokenText);
+      };
+
+      try {
+        await audio.play();
+        info.textContent = "AARO AI හඬින් පිළිතුරු දෙනවා...";
+        return;
+      } catch (playError) {
+        URL.revokeObjectURL(audioUrl);
+        if (currentAudio === audio) currentAudio = null;
+        console.warn("Generated audio playback blocked:", playError);
+      }
+    } else {
+      console.warn("AARO TTS route failed:", response.status, data);
+      info.textContent = "AI හඬ සේවාව තාවකාලිකව ලබාගත නොහැක (" +
+        (data.status || response.status) + "). Browser හඬෙන් උත්සාහ කරනවා...";
+    }
+  } catch (error) {
+    console.warn("AARO TTS request failed:", error);
+    info.textContent = "AI හඬ සේවාවට සම්බන්ධ විය නොහැක. Browser හඬෙන් උත්සාහ කරනවා...";
+  }
+
+  speak(spokenText);
+}
+
 async function reply(text, responseMode = "text") {
   if (isReplying) {
     if (responseMode === "text") {
@@ -506,7 +570,7 @@ async function reply(text, responseMode = "text") {
                 : "අනිවාර්ය උපදෙස්: පිළිතුර සිංහල අකුරුවලින්, ස්වාභාවික සහ පැහැදිලි සිංහලෙන් පමණක් දෙන්න. ඉංග්‍රීසි වාක්‍ය හෝ ඉංග්‍රීසි හැඳින්වීමක් දෙන්න එපා. ප්‍රශ්නයට සෘජුව පිළිතුරු දී අවශ්‍ය විස්තර සිංහලෙන් පැහැදිලි කරන්න. පරිශීලකයාගේ පණිවිඩය: " + text
             )
           : text,
-        history: conversationHistory.slice(-10)
+        history: (responseMode === "voice" ? voiceConversationHistory : conversationHistory).slice(-10)
       })
     });
 
@@ -522,17 +586,19 @@ async function reply(text, responseMode = "text") {
     }
 
     const answer = String(data.reply).trim();
-    conversationHistory.push({ role: "user", text: text });
-    conversationHistory.push({ role: "model", text: answer });
-    conversationHistory = conversationHistory.slice(-MAX_SAVED_MESSAGES);
-    saveConversationMemory();
-
     if (responseMode === "voice") {
-      // Voice input gets a spoken answer only; do not print the AI answer as text.
-      info.textContent = "AARO AI හඬ පිළිතුර සකස් කරමින්...";
-      speak(answer);
+      // Voice conversations are separate and are not saved into visible Chat Mode history.
+      voiceConversationHistory.push({ role: "user", text: text });
+      voiceConversationHistory.push({ role: "model", text: answer });
+      voiceConversationHistory = voiceConversationHistory.slice(-MAX_SAVED_MESSAGES);
+      info.textContent = "පිළිතුර ලැබුණා. හඬ සකස් කරමින්...";
+      await speakAnswer(answer);
     } else {
-      // Typed input gets a text answer only; do not play audio.
+      // Only typed Chat Mode conversations are displayed and saved as text.
+      conversationHistory.push({ role: "user", text: text });
+      conversationHistory.push({ role: "model", text: answer });
+      conversationHistory = conversationHistory.slice(-MAX_SAVED_MESSAGES);
+      saveConversationMemory();
       addMessage(answer, "bot");
       info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
     }
