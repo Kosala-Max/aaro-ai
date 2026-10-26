@@ -402,6 +402,47 @@ voiceSelect.addEventListener("change", () => {
 let currentAudio = null;
 let speechRequestId = 0;
 
+// Gemini TTS commonly returns raw PCM (audio/L16), which HTMLAudioElement
+// cannot play directly. Convert 16-bit mono PCM into a standard WAV container.
+function makePlayableAudioBlob(base64Audio, mimeType) {
+  const binary = atob(base64Audio);
+  const pcm = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) pcm[i] = binary.charCodeAt(i);
+
+  const mime = String(mimeType || "").toLowerCase();
+  const pcmFormat = mime.includes("l16") || mime.includes("pcm") || mime.includes("raw");
+  if (!pcmFormat) {
+    return new Blob([pcm], { type: mimeType || "audio/wav" });
+  }
+
+  const rateMatch = mime.match(/rate=(\\d+)/) || mime.match(/sample.?rate=(\\d+)/);
+  const sampleRate = rateMatch ? Number(rateMatch[1]) : 24000;
+  const channelsMatch = mime.match(/channels?=(\\d+)/);
+  const channels = channelsMatch ? Number(channelsMatch[1]) : 1;
+  const bytesPerSample = 2;
+  const dataLength = pcm.byteLength;
+  const wav = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(wav);
+  const writeText = (offset, value) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  };
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + dataLength, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * bytesPerSample, true);
+  view.setUint16(32, channels * bytesPerSample, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeText(36, "data");
+  view.setUint32(40, dataLength, true);
+  new Uint8Array(wav, 44).set(pcm);
+  return new Blob([wav], { type: "audio/wav" });
+}
+
 function speak(text) {
   const requestId = ++speechRequestId;
 
@@ -505,10 +546,8 @@ async function speakAnswer(text) {
     const data = await response.json();
 
     if (response.ok && data.audioBase64) {
-      const binary = atob(data.audioBase64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const audioUrl = URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" }));
+      const audioBlob = makePlayableAudioBlob(data.audioBase64, data.mimeType);
+      const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       currentAudio = audio;
 
