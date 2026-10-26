@@ -490,9 +490,13 @@ async function speak(text) {
   synth.speak(utterance);
 }
 
-async function reply(text) {
+async function reply(text, responseMode = "text") {
   if (isReplying) {
-    addMessage("පෙර පණිවිඩයට පිළිතුරු සකස් කරමින් ඉන්නවා. මොහොතක් ඉන්න.", "bot");
+    if (responseMode === "text") {
+      addMessage("පෙර පණිවිඩයට පිළිතුරු සකස් කරමින් ඉන්නවා. මොහොතක් ඉන්න.", "bot");
+    } else {
+      info.textContent = "පෙර පිළිතුර සකස් කරමින් ඉන්නවා. මොහොතක් ඉන්න.";
+    }
     return;
   }
 
@@ -522,9 +526,15 @@ async function reply(text) {
     conversationHistory = conversationHistory.slice(-MAX_SAVED_MESSAGES);
     saveConversationMemory();
 
-    addMessage(answer, "bot");
-    info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
-    if (currentMode === "voice") speak(answer);
+    if (responseMode === "voice") {
+      // Voice input gets a spoken answer only; do not print the AI answer as text.
+      info.textContent = "AARO AI හඬ පිළිතුර සකස් කරමින්...";
+      speak(answer);
+    } else {
+      // Typed input gets a text answer only; do not play audio.
+      addMessage(answer, "bot");
+      info.textContent = "AARO AI සම්බන්ධයි. තව ප්‍රශ්නයක් අහන්න.";
+    }
   } catch (error) {
     console.error("AARO AI request failed:", error);
     addMessage(
@@ -548,7 +558,7 @@ form.addEventListener("submit", (event) => {
 
   addMessage(text, "user");
   input.value = "";
-  reply(text);
+  reply(text, "text");
 });
 
 let keepListening = false;
@@ -683,9 +693,9 @@ function finishVoiceSession() {
 
   if (text) {
     input.value = "";
-    addMessage(text, "user");
-    info.textContent = "හඬ හඳුනාගත්තා.";
-    reply(text);
+    // Voice input stays voice-first: do not add a text transcript bubble.
+    info.textContent = "හඬ හඳුනාගත්තා. AARO පිළිතුරු දෙමින්...";
+    reply(text, "voice");
   } else {
     input.value = "";
     info.textContent =
