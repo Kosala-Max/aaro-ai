@@ -510,7 +510,12 @@ async function reply(text, responseMode = "text") {
     const response = await fetch(AARO_WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({\n        message: language.value.toLowerCase().startsWith("si")\n          ? "ඔබ සිංහල භාෂාවෙන් පමණක් පිළිතුරු දෙන්න. මුලින් ඉංග්‍රීසි වාක්‍ය හෝ හැඳින්වීමක් කියන්න එපා. පිළිතුර සරල, ස්වාභාවික සිංහලෙන් දෙන්න. පරිශීලකයාගේ පණිවිඩය: " + text\n          : text,\n        history: conversationHistory.slice(-10)\n      })
+      body: JSON.stringify({
+        message: language.value.toLowerCase().startsWith("si")
+          ? "ඔබ සිංහල භාෂාවෙන් පමණක් පිළිතුරු දෙන්න. මුලින් ඉංග්‍රීසි වාක්‍ය හෝ හැඳින්වීමක් කියන්න එපා. පිළිතුර සරල, ස්වාභාවික සිංහලෙන් දෙන්න. පරිශීලකයාගේ පණිවිඩය: " + text
+          : text,
+        history: conversationHistory.slice(-10)
+      })
     });
 
     let data;
