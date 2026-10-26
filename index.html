@@ -273,10 +273,13 @@ function setMode(mode) {
   currentMode = mode;
   chatModeBtn.classList.toggle("active", mode === "chat");
   voiceModeBtn.classList.toggle("active", mode === "voice");
+  // Chat mode is strictly text-only; voice mode is strictly voice-only.
   micBtn.disabled = mode !== "voice";
   micBtn.style.opacity = mode === "voice" ? "1" : "0.55";
   voiceSelect.disabled = mode !== "voice";
   speed.disabled = mode !== "voice";
+  form.style.display = mode === "chat" ? "flex" : "none";
+  micBtn.style.display = mode === "voice" ? "block" : "none";
   if (mode === "chat") {
     if (recognition && listening) {
       keepListening = false;
@@ -693,8 +696,8 @@ function finishVoiceSession() {
 
   if (text) {
     input.value = "";
-    // Voice input stays voice-first: do not add a text transcript bubble.
-    info.textContent = "හඬ හඳුනාගත්තා. AARO පිළිතුරු දෙමින්...";
+    // Voice mode sends recognized speech internally only; no text transcript is shown.
+    info.textContent = "හඬ හඳුනාගත්තා. AARO හඬින් පිළිතුරු දෙමින්...";
     reply(text, "voice");
   } else {
     input.value = "";
@@ -747,6 +750,9 @@ language.addEventListener("change", () => {
     language.selectedIndex
   ].textContent;
 });
+
+// Initialize in Chat Mode so the microphone cannot run in text-only mode.
+setMode("chat");
 
 // Restore the saved conversation when this page opens.
 showWelcomeMessage();
