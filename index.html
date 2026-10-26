@@ -1,0 +1,555 @@
+
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0715">
+<title>AARO AI</title>
+
+<style>
+:root {
+  --bg: #0b0715;
+  --panel: #171126;
+  --purple: #a66bff;
+  --text: #f7f1ff;
+  --muted: #b9accd;
+}
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, "Noto Sans Sinhala", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+header {
+  padding: 17px 20px;
+  border-bottom: 1px solid #302144;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.logo { font-size: 23px; font-weight: bold; }
+.logo span { color: var(--purple); }
+.status { color: #b7f5d0; font-size: 12px; }
+
+main {
+  max-width: 800px;
+  margin: auto;
+  padding: 22px 15px;
+}
+.hero { text-align: center; padding: 12px 0 20px; }
+.orb {
+  width: 100px;
+  height: 100px;
+  margin: auto auto 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e0c4ff, #9a4bff 40%, #31105d 75%);
+  box-shadow: 0 0 35px #8d45ff66;
+  display: grid;
+  place-items: center;
+  font-size: 42px;
+}
+h1 { margin: 8px 0; font-size: 29px; }
+.hero p { color: var(--muted); line-height: 1.7; }
+
+.settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+select, button, input {
+  font: inherit;
+}
+select {
+  background: var(--panel);
+  color: white;
+  border: 1px solid #44315e;
+  padding: 11px;
+  border-radius: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.chat {
+  background: var(--panel);
+  border: 1px solid #302144;
+  border-radius: 18px;
+  padding: 15px;
+}
+.messages {
+  height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding-bottom: 14px;
+}
+.msg {
+  max-width: 88%;
+  padding: 12px 14px;
+  border-radius: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.bot {
+  align-self: flex-start;
+  background: #29203b;
+}
+.user {
+  align-self: flex-end;
+  background: #6332a3;
+}
+.msg small {
+  display: block;
+  margin-top: 7px;
+  color: #ded0f4;
+  font-size: 11px;
+}
+.composer {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #382849;
+  padding-top: 14px;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  color: white;
+  background: #0e0a19;
+  border: 1px solid #45325c;
+  border-radius: 12px;
+  padding: 13px;
+  outline: none;
+}
+input:focus { border-color: var(--purple); }
+button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 15px;
+  cursor: pointer;
+  color: white;
+  background: #6332a3;
+}
+button:active { transform: scale(.97); }
+.primary { background: var(--purple); color: #160925; font-weight: bold; }
+.voice-row {
+  display: flex;
+  gap: 9px;
+  margin-top: 12px;
+}
+.voice-row button { flex: 1; }
+#micBtn.listening {
+  background: #c04470;
+  animation: pulse 1s infinite alternate;
+}
+@keyframes pulse {
+  from { box-shadow: 0 0 0 0 #ff5caa22; }
+  to { box-shadow: 0 0 0 7px #ff5caa33; }
+}
+.note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 15px 3px;
+}
+footer { text-align: center; padding: 15px; color: #8f80a6; font-size: 12px; }
+
+@media(max-width: 480px) {
+  header { padding: 14px; }
+  .logo { font-size: 20px; }
+  main { padding: 15px 10px; }
+  .composer { flex-wrap: wrap; }
+  .composer input { flex: 1 1 65%; }
+  .composer button { flex: 1; }
+  .messages { height: 42vh; min-height: 230px; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="logo">✦ <span>AARO</span> AI</div>
+  <div class="status">● Ready</div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="orb">✦</div>
+    <h1>Hi, මම AARO!</h1>
+    <p>ඔයාගේම AI Assistant 🤖<br>
+    අපි සිංහලෙන් කතා කරමු.</p>
+  </section>
+
+  <section class="settings">
+    <select id="language" aria-label="Voice recognition language">
+      <option value="si-LK">සිංහල</option>
+      <option value="en-US">English</option>
+    </select>
+
+    <select id="voiceSelect" aria-label="Assistant voice">
+      <option value="">Default voice</option>
+    </select>
+
+    <select id="speed" aria-label="Voice speed">
+      <option value="0.85">Slow voice</option>
+      <option value="1">Normal voice</option>
+      <option value="1.15" selected>Fast voice</option>
+      <option value="1.25">Extra fast voice</option>
+    </select>
+  </section>
+
+  <section class="chat">
+    <div class="messages" id="messages" aria-live="polite">
+      <div class="msg bot">
+        හෙලෝ! 👋 මම AARO. ඔයාට මගෙන් මොනවද දැනගන්න ඕනේ?
+        <small>AARO AI</small>
+      </div>
+    </div>
+
+    <form class="composer" id="chatForm">
+      <input id="userInput" autocomplete="off"
+        placeholder="මෙතන සිංහලෙන් ටයිප් කරන්න..."
+        aria-label="Message">
+      <button class="primary" type="submit">Send ➤</button>
+    </form>
+
+    <div class="voice-row">
+      <button id="micBtn" type="button">🎙️ කතා කරන්න</button>
+      <button id="stopBtn" type="button">🔇 හඬ නවත්වන්න</button>
+    </div>
+  </section>
+
+  <p class="note" id="info">
+    Voice භාවිතයට microphone අවසරය දෙන්න.
+    මෙය මූලික demo එකකි; තවම සැබෑ AI සේවාවක් සම්බන්ධ කර නැත.
+  </p>
+</main>
+
+<footer>AARO AI · Your Personal Assistant</footer>
+
+<script>
+const messages = document.getElementById("messages");
+const input = document.getElementById("userInput");
+const form = document.getElementById("chatForm");
+const micBtn = document.getElementById("micBtn");
+const stopBtn = document.getElementById("stopBtn");
+const language = document.getElementById("language");
+const voiceSelect = document.getElementById("voiceSelect");
+const speed = document.getElementById("speed");
+const info = document.getElementById("info");
+
+let recognition = null;
+let listening = false;
+let selectedVoice = null;
+
+function addMessage(text, who) {
+  const bubble = document.createElement("div");
+  bubble.className = "msg " + who;
+  bubble.appendChild(document.createTextNode(text));
+
+  const label = document.createElement("small");
+  label.textContent = who === "bot" ? "AARO AI" : "ඔයා";
+  bubble.appendChild(label);
+
+  messages.appendChild(bubble);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function loadVoices() {
+  if (!("speechSynthesis" in window)) return;
+
+  const voices = window.speechSynthesis.getVoices();
+  const oldValue = voiceSelect.value;
+
+  voiceSelect.replaceChildren();
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Default voice";
+  voiceSelect.appendChild(defaultOption);
+
+  voices.forEach((voice, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = voice.name + " (" + voice.lang + ")";
+    voiceSelect.appendChild(option);
+  });
+
+  if (oldValue !== "") voiceSelect.value = oldValue;
+  if (!voiceSelect.value) selectedVoice = null;
+}
+
+if ("speechSynthesis" in window) {
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+voiceSelect.addEventListener("change", () => {
+  const voices = window.speechSynthesis?.getVoices() || [];
+  selectedVoice = voiceSelect.value === ""
+    ? null
+    : voices[Number(voiceSelect.value)] || null;
+});
+
+function speak(text) {
+  if (!("speechSynthesis" in window)) {
+    info.textContent = "මෙම browser එකේ voice output සහාය නැහැ.";
+    return;
+  }
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  // AARO නම සිංහලෙන් උච්චාරණය කිරීමට උපකාරී වේ.
+  const spokenText = text.replace(/\bAARO\b/gi, "ආරෝ");
+  const utterance = new SpeechSynthesisUtterance(spokenText);
+  const selectedLanguage = language.value || "si-LK";
+  const languageCode = selectedLanguage.toLowerCase().split("-")[0];
+  const voices = synth.getVoices();
+
+  // User manually selected a voice? Keep respecting that choice.
+  // Otherwise, prefer a female-sounding voice for the chosen language.
+  const femaleVoice = voices.find(voice => {
+    const name = voice.name.toLowerCase();
+    const soundsFemale = /female|woman|zira|samantha|susan|karen|aria|jenny|sonia|helen|eva|sara|natasha|hazel|google uk english female/.test(name);
+    return soundsFemale && voice.lang.toLowerCase().startsWith(languageCode);
+  });
+
+  const anyLanguageVoice = voices.find(voice =>
+    voice.lang.toLowerCase().startsWith(languageCode)
+  );
+
+  utterance.lang = selectedLanguage;
+  utterance.voice = selectedVoice || femaleVoice || anyLanguageVoice || null;
+  utterance.rate = Number(speed.value) || 0.92;
+  utterance.pitch = 1.15;
+
+  utterance.onerror = () => {
+    info.textContent =
+      "හඬ ලබාගැනීමට නොහැකි වුණා. වෙනත් voice එකක් තෝරා බලන්න.";
+  };
+
+  synth.speak(utterance);
+}
+
+// This is a temporary demo brain, not a real AI model.
+function getDemoReply(text) {
+  const t = text.toLowerCase().trim();
+
+  if (/^(hi|hello|hey|හෙලෝ|හලෝ|ආයුබෝවන්)/.test(t)) {
+    return "හෙලෝ! 😊 මගේ නම ආරෝ. අද ඔයාට කොහොමද?";
+  }
+
+  if (t.includes("ඔයාගේ නම") || t.includes("ඔයා කවුද")) {
+    return "මගේ නම AARO. මම ඔයාගේ පුද්ගලික AI Assistant වෙන්න හදනවා!";
+  }
+
+  if (t.includes("කොහොමද") || t.includes("how are you")) {
+    return "මම හොඳින්! 😊 ඔයාට අද මොනවද කරන්න ඕනේ?";
+  }
+
+  if (t.includes("ස්තුති") || t.includes("thank")) {
+    return "ඔයාට සාදරයෙන් පිළිගන්නවා! 💜";
+  }
+
+  if (t.includes("සමුගන්න") || t.includes("bye")) {
+    return "හරි! පරිස්සමින් ඉන්න. ආයෙත් කතා කරමු!";
+  }
+
+  return "ඔයා කිව්වේ: " + text +
+    "\n\nමේක AARO එකේ පළමු demo version එකයි. " +
+    "සැබෑ AI පිළිතුරු ලබාදීමට ඊළඟට AI සේවාවක් සම්බන්ධ කරමු.";
+}
+
+function reply(text) {
+  const answer = getDemoReply(text);
+  addMessage(answer, "bot");
+  speak(answer);
+}
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (listening && recognition) {
+    recognition.stop();
+  }
+
+  addMessage(text, "user");
+  input.value = "";
+  reply(text);
+});
+
+let keepListening = false;
+let speechFinalText = "";
+
+function startListening() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    info.textContent =
+      "මෙම browser එක voice recognition සඳහා සහාය නොදක්වයි. " +
+      "PC එකේ අලුත් Chrome හෝ Edge version එකකින් පරීක්ෂා කරන්න.";
+    return;
+  }
+
+  // Mic button එක නැවත ඔබන විට කතාව අවසන් කර ප්‍රතිඵලය යවයි.
+  if (listening && recognition) {
+    keepListening = false;
+    info.textContent = "කතාව අවසන් කරමින්...";
+    try {
+      recognition.stop();
+    } catch (error) {
+      finishVoiceSession();
+    }
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = language.value;
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  speechFinalText = "";
+  input.value = "";
+  keepListening = true;
+
+  recognition.onstart = () => {
+    listening = true;
+    micBtn.classList.add("listening");
+    micBtn.textContent = "✅ අවසන් කරන්න / යවන්න";
+    info.textContent =
+      "දැන් කතා කරන්න. අවසන් වූ විට mic බොත්තම නැවත ඔබන්න.";
+  };
+
+  recognition.onresult = (event) => {
+    const finalParts = [];
+    const interimParts = [];
+
+    // සම්පූර්ණ results ලැයිස්තුව නැවත කියවීමෙන්
+    // final වචන නැවත නැවත එකතු වීම අඩු කරයි.
+    for (let i = 0; i < event.results.length; i++) {
+      const result = event.results[i];
+      const best = result[0];
+
+      if (!best || !best.transcript) continue;
+
+      if (result.isFinal) {
+        finalParts.push(best.transcript.trim());
+      } else {
+        interimParts.push(best.transcript.trim());
+      }
+    }
+
+    speechFinalText = finalParts.filter(Boolean).join(" ").trim();
+    const interimText = interimParts.filter(Boolean).join(" ").trim();
+    input.value = [speechFinalText, interimText].filter(Boolean).join(" ").trim();
+
+    if (input.value) {
+      info.textContent = "හඳුනාගත් වචන පෙන්වනවා. කතාව අවසන් වූ විට mic බොත්තම ඔබන්න.";
+    }
+  };
+
+  recognition.onerror = (event) => {
+    // සමහර browser වල නිහඬ විරාමයකදී no-speech එන්න පුළුවන්.
+    // එවැනි අවස්ථාවක නැවත අහන්න උත්සාහ කරයි.
+    if (event.error === "no-speech") {
+      return;
+    }
+
+    keepListening = false;
+    info.textContent =
+      "Voice error: " + event.error +
+      ". Microphone අවසරය, අන්තර්ජාලය සහ තෝරාගත් භාෂාව පරීක්ෂා කරන්න.";
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎙️ කතා කරන්න";
+
+    if (keepListening) {
+      // Browser එක recognition session එක ස්වයංක්‍රීයව අවසන් කළොත්
+      // අලුත් session එකක් අරඹා එම කතාව දිගටම එකතු කරයි.
+      info.textContent = "තொடர்ந்து கேட்கிறேன்… தொடர்ந்து பேசுங்கள்.";
+      setTimeout(() => {
+        if (!keepListening || !recognition) return;
+        try {
+          recognition.start();
+        } catch (error) {
+          info.textContent =
+            "Voice නැවත ආරම්භ කරන්න බැරි වුණා. Mic බොත්තම නැවත ඔබන්න.";
+          keepListening = false;
+        }
+      }, 300);
+      return;
+    }
+
+    finishVoiceSession();
+  };
+
+  try {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    recognition.start();
+  } catch (error) {
+    keepListening = false;
+    listening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎙️ කතා කරන්න";
+    info.textContent =
+      "Voice ආරම්භ කරන්න බැරි වුණා. තත්පර කිහිපයකින් නැවත උත්සාහ කරන්න.";
+  }
+}
+
+function finishVoiceSession() {
+  const text = (speechFinalText || input.value).trim();
+  listening = false;
+  keepListening = false;
+  micBtn.classList.remove("listening");
+  micBtn.textContent = "🎙️ කතා කරන්න";
+
+  if (text) {
+    input.value = "";
+    addMessage(text, "user");
+    info.textContent = "හඬ හඳුනාගත්තා.";
+    reply(text);
+  } else {
+    input.value = "";
+    info.textContent =
+      "කතාව හඳුනාගන්න බැරි වුණා. Mic අවසරය සහ භාෂාව පරීක්ෂා කර නැවත උත්සාහ කරන්න.";
+  }
+}
+micBtn.addEventListener("click", startListening);
+
+stopBtn.addEventListener("click", () => {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+  if (recognition && listening) {
+    keepListening = false;
+    info.textContent = "කතාව අවසන් කරමින්...";
+    try {
+      recognition.stop();
+    } catch (error) {
+      finishVoiceSession();
+    }
+  } else {
+    info.textContent = "හඬ නවත්වන ලදී.";
+  }
+});
+
+language.addEventListener("change", () => {
+  info.textContent = "Voice language: " + language.options[
+    language.selectedIndex
+  ].textContent;
+});
+
+</script>
+</body>
+</html>
