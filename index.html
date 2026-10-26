@@ -467,7 +467,7 @@ function speak(text) {
   // Use a matching language voice when available. Otherwise let the browser
   // choose its default voice rather than assigning a missing/invalid voice.
   const matchingVoice = selectedVoice &&
-    (!isSinhala || selectedVoice.lang.toLowerCase().startsWith("si"))
+    selectedVoice.lang.toLowerCase().startsWith(languageCode)
       ? selectedVoice
       : voices.find(voice =>
           voice.lang.toLowerCase().startsWith(languageCode)
@@ -811,7 +811,7 @@ function finishVoiceSession() {
 micBtn.addEventListener("click", startListening);
 
 testVoiceBtn.addEventListener("click", () => {
-  // Diagnostic test: bypass the Worker TTS API and test browser speech directly.
+  // Isolate browser speech and report its actual events instead of the generic connected status.
   const testText = language.value.toLowerCase().startsWith("si")
     ? "ආයුබෝවන්. මම ආරෝ කෘත්‍රිම බුද්ධි සහායකයා. හඬ පරීක්ෂාව සාර්ථකයි."
     : "Hello. I am AARO AI. This is a voice test.";
@@ -820,10 +820,39 @@ testVoiceBtn.addEventListener("click", () => {
     currentAudio.pause();
     currentAudio = null;
   }
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+    info.textContent = "Browser එකේ text-to-speech සහාය නැහැ. Chrome හෝ Edge යාවත්කාලීන කරන්න.";
+    return;
+  }
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const utterance = new SpeechSynthesisUtterance(testText);
+  const selectedLanguage = language.value || "en-US";
+  const languageCode = selectedLanguage.toLowerCase().split("-")[0];
+  const voices = synth.getVoices();
+  const matchingVoice = selectedVoice &&
+    selectedVoice.lang.toLowerCase().startsWith(languageCode)
+      ? selectedVoice
+      : voices.find(voice => voice.lang.toLowerCase().startsWith(languageCode)) || null;
+
+  utterance.lang = selectedLanguage;
+  if (matchingVoice) utterance.voice = matchingVoice;
+  utterance.rate = Number(speed.value) || 1;
+
+  utterance.onstart = () => {
+    info.textContent = "Browser හඬ ආරම්භ වුණා. ශබ්දය ඇහෙනවාදැයි පරීක්ෂා කරන්න.";
+  };
+  utterance.onend = () => {
+    info.textContent = "Browser හඬ පරීක්ෂණය අවසන්. ශබ්දය ඇහුණේ නැත්නම් Chrome Volume Mixer පරීක්ෂා කරන්න.";
+  };
+  utterance.onerror = (event) => {
+    info.textContent = "Browser හඬ දෝෂය: " + event.error;
+  };
 
   info.textContent = "Browser හඬ පරීක්ෂා කරමින්...";
-  speak(testText);
+  synth.resume();
+  synth.speak(utterance);
 });
 
 clearMemoryBtn.addEventListener("click", () => {
